@@ -1,0 +1,14 @@
+{
+  "name": "hidamari-stt",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "login": "node scripts/wr.mjs login",
+    "whoami": "node scripts/wr.mjs whoami",
+    "deploy": "node scripts/wr.mjs deploy",
+    "dev": "node scripts/wr.mjs dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

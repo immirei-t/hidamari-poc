@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { STT_URL, transcribeRemote } from './stt'
 
 // 録音（MediaRecorder）と文字起こし（Web Speech API）を行うフック。
 // PoC: 文字起こしはブラウザ内蔵の音声認識（PC の Chrome / Edge のみ。スマホは録音のみ）。
@@ -60,6 +61,9 @@ export function useVoiceRecorder() {
   const [url, setUrl] = useState<string>()
   const [error, setError] = useState<string>()
   const [warning, setWarning] = useState<string>()
+  const [transcribing, setTranscribing] = useState(false)
+  const [sttFailed, setSttFailed] = useState(false)
+  const takeRef = useRef(0) // 録り直し後に古い文字起こし結果が入らないようにする
 
   const recorderRef = useRef<MediaRecorder>()
   const streamRef = useRef<MediaStream>()
@@ -131,14 +135,32 @@ export function useVoiceRecorder() {
       const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined)
       const chunks: Blob[] = []
       rec.ondataavailable = (e) => e.data.size && chunks.push(e.data)
-      rec.onstop = () => {
+      rec.onstop = async () => {
         const b = new Blob(chunks, { type: rec.mimeType || mime || 'audio/webm' })
+        const take = ++takeRef.current
         setBlob(b)
         setUrl(URL.createObjectURL(b))
         setPhase('review')
-        isSilent(b).then((silent) => {
-          if (b.size < 1000 || silent) setWarning('声が録音できていないようです。「🔄 録り直す」を押して、もう一度お試しください。')
-        })
+        const silent = b.size < 1000 || (await isSilent(b))
+        if (take !== takeRef.current) return
+        if (silent) {
+          setWarning('声が録音できていないようです。「🔄 録り直す」を押して、もう一度お試しください。')
+          return
+        }
+        if (!STT_URL) return
+        // 録音した音声をサーバーで文字にする（PC の速報より精度が高いので置き換える）
+        setTranscribing(true)
+        setSttFailed(false)
+        try {
+          const text = await transcribeRemote(b, AbortSignal.timeout(30000))
+          if (take !== takeRef.current) return
+          finalRef.current = text
+          setTranscript(text)
+        } catch {
+          if (take === takeRef.current) setSttFailed(true)
+        } finally {
+          if (take === takeRef.current) setTranscribing(false)
+        }
       }
       recorderRef.current = rec
       finalRef.current = ''
@@ -190,7 +212,10 @@ export function useVoiceRecorder() {
     setInterim('')
     setSeconds(0)
     setWarning(undefined)
+    setTranscribing(false)
+    setSttFailed(false)
+    takeRef.current++
   }, [cleanup])
 
-  return { phase, seconds, transcript, interim, blob, url, error, warning, start, stop, reset, setTranscript }
+  return { phase, seconds, transcript, interim, blob, url, error, warning, transcribing, sttFailed, start, stop, reset, setTranscript }
 }

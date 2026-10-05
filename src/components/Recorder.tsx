@@ -1,4 +1,5 @@
 import { useVoiceRecorder, liveTranscription } from '../lib/useVoiceRecorder'
+import { STT_URL } from '../lib/stt'
 import { AudioButton, BigButton } from './ui'
 
 export interface RecordingResult {
@@ -63,20 +64,25 @@ export function Recorder({
           <p className="review-title">{rec.warning ? '録音を確認してください' : '録音できました'}（{mm}:{ss}）</p>
           {rec.warning && <p className="error">{rec.warning}</p>}
           <AudioButton src={rec.url} label="▶ 聞いてみる" />
-          {liveTranscription ? (
+          {rec.warning ? null : rec.transcribing ? (
+            <div className="transcript-preview">
+              <div className="label">📝 文字にしています…</div>
+              <p className="interim">少しお待ちください</p>
+            </div>
+          ) : STT_URL || liveTranscription ? (
             <div className="transcript-preview">
               <div className="label">文字にすると…</div>
-              <p>{rec.transcript || 'うまく聞き取れませんでした。声は保存されます。'}</p>
+              <p>{rec.transcript || (rec.sttFailed ? '文字にできませんでした。声は保存されます。' : 'うまく聞き取れませんでした。声は保存されます。')}</p>
             </div>
           ) : (
-            <p className="hint">声はそのまま保存されます。（スマホでの文字起こしは準備中です。あとで家族が文字を書き足すこともできます）</p>
+            <p className="hint">声はそのまま保存されます。（この端末では文字起こしが使えません。あとで家族が文字を書き足すこともできます）</p>
           )}
           <div className="row">
             <BigButton variant="secondary" onClick={rec.reset}>
               🔄 録り直す
             </BigButton>
-            <BigButton disabled={saving} onClick={() => onSave({ blob: rec.blob!, transcript: rec.transcript.trim() })}>
-              {saving ? '保存中…' : saveLabel}
+            <BigButton disabled={saving || rec.transcribing} onClick={() => onSave({ blob: rec.blob!, transcript: rec.transcript.trim() })}>
+              {saving ? '保存中…' : rec.transcribing ? '文字にしています…' : saveLabel}
             </BigButton>
           </div>
         </>

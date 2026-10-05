@@ -3,6 +3,7 @@ import { Avatar, ToastHost } from './components/ui'
 import { go, useRoute } from './lib/router'
 import { useMe, useStore } from './store'
 import { liveTranscription } from './lib/useVoiceRecorder'
+import { STT_URL } from './lib/stt'
 import { Signup, Welcome } from './screens/Welcome'
 import { SeniorHome } from './screens/SeniorHome'
 import { Answer } from './screens/Answer'
@@ -162,7 +163,7 @@ function DemoGuide() {
         <p>
           🎤 録音はマイク許可が必要です。
           <br />
-          📝 文字起こし: {liveTranscription ? '✅ このブラウザで使えます' : '⚠️ この端末では録音のみ（PC の Chrome / Edge で文字起こし）'}
+          📝 文字起こし: {STT_URL ? '✅ サーバー（Whisper）で文字にします' : liveTranscription ? '✅ このブラウザで使えます' : '⚠️ この端末では録音のみ'}
           <br />
           💾 データはこのブラウザ内だけに保存されます（サーバー無し）。
         </p>
