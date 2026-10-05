@@ -3,7 +3,7 @@ import QRCode from 'qrcode'
 import { Recorder } from '../components/Recorder'
 import { AudioButton, Avatar, BigButton, ConfirmButton, Empty, MediaImage, PhotoPicker, Screen, toast } from '../components/ui'
 import { go } from '../lib/router'
-import { contactsOf, formatTime, friendsOf, markMissionIfMatches, putMedia, supportersOf, uid, unreadFrom, useMe, userById, useStore } from '../store'
+import { contactsOf, findSeniorByCode, formatTime, friendsOf, markMissionIfMatches, putMedia, supportersOf, uid, unreadFrom, useMe, userById, useStore } from '../store'
 import { QUICK_REPLIES, STAMPS } from '../seed'
 import type { Message, User } from '../types'
 
@@ -76,7 +76,7 @@ export function AddFriend() {
   }, [me.inviteCode])
 
   const send = () => {
-    const target = state.users.find((u) => u.kind === 'senior' && u.inviteCode === code.trim().toUpperCase())
+    const target = findSeniorByCode(state, code)
     if (!target || target.id === me.id) return toast('コードが見つかりませんでした。もう一度たしかめてください。')
     const exists = state.friendships.find((f) => (f.fromId === me.id && f.toId === target.id) || (f.fromId === target.id && f.toId === me.id))
     if (exists?.status === 'accepted') return toast(`${target.callName}とはもう友達です`)

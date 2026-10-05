@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Avatar, BigButton, PhotoPicker, MediaImage, toast } from '../components/ui'
 import { go } from '../lib/router'
-import { makeInviteCode, putMedia, uid, useStore } from '../store'
+import { findSeniorByCode, makeInviteCode, putMedia, uid, useStore } from '../store'
 import { PURPOSES } from '../seed'
 import type { Purpose, SupporterRole, User } from '../types'
 
@@ -81,7 +81,8 @@ export function Signup() {
   const finish = () => {
     const id = uid('u')
     const call = callName.trim() || `${name.trim().split(/\s+/).pop()}さん`
-    let linkedTo: string | undefined
+    // 照合は update の外で行う（update 内の処理は後から実行されるため、結果をここで使えない）
+    const senior = kind === 'supporter' && seniorCode.trim() ? findSeniorByCode(state, seniorCode) : undefined
     update((d) => {
       d.users.push({
         id,
@@ -95,18 +96,14 @@ export function Signup() {
       })
       if (kind === 'senior') {
         d.profiles.push({ userId: id, purposes, birthYear: birthYear ? Number(birthYear) : undefined, flowerWaterCount: 0 })
-      } else if (seniorCode.trim()) {
-        const senior = d.users.find((u) => u.kind === 'senior' && u.inviteCode === seniorCode.trim().toUpperCase())
-        if (senior) {
-          // 本人の承認が必要（要件 #40: 承認した人だけアクセス）
-          d.relationships.push({ id: uid('rel'), seniorId: senior.id, supporterId: id, role, label: label.trim() || ROLES.find((r) => r.id === role)!.label, status: 'pending', createdAt: Date.now() })
-          linkedTo = senior.callName
-        }
+      } else if (senior) {
+        // 本人の承認が必要（要件 #40: 承認した人だけアクセス）
+        d.relationships.push({ id: uid('rel'), seniorId: senior.id, supporterId: id, role, label: label.trim() || ROLES.find((r) => r.id === role)!.label, status: 'pending', createdAt: Date.now() })
       }
       d.currentUserId = id
     })
     if (kind === 'supporter' && seniorCode.trim()) {
-      toast(linkedTo ? `${linkedTo}に承認をお願いしました` : 'コードが見つかりませんでした。あとから追加できます')
+      toast(senior ? `${senior.callName}に承認をお願いしました` : 'コードが見つかりませんでした。あとから追加できます')
     }
     go('/')
   }
@@ -126,22 +123,22 @@ export function Signup() {
       <main className="content">
         {step === 0 && (
           <>
-            <h2 className="q-title">どなたが使いますか？</h2>
+            <h2 className="q-title">あなたは、どちらですか？</h2>
             <div className="stack">
               <button className={`choice ${kind === 'senior' ? 'on' : ''}`} onClick={() => { setKind('senior'); setStep(1) }}>
                 <span className="choice-emoji">🙋</span>
                 <span>
-                  <b>自分のために使う</b>
+                  <b>わたしの思い出を残したい</b>
                   <br />
-                  <small>思い出を残したり、友達とつながったり</small>
+                  <small>わたしが話して、思い出やレシピを残します。友達ともやりとりします。</small>
                 </span>
               </button>
               <button className={`choice ${kind === 'supporter' ? 'on' : ''}`} onClick={() => { setKind('supporter'); setStep(1) }}>
                 <span className="choice-emoji">🤝</span>
                 <span>
-                  <b>大切な人をサポートする</b>
+                  <b>家族や利用者さんを手伝いたい</b>
                   <br />
-                  <small>家族・友人・介護者・施設スタッフ</small>
+                  <small>わたしは、お子さん・お孫さん・友人・介護スタッフなど「支える側」です。</small>
                 </span>
               </button>
             </div>
@@ -150,14 +147,14 @@ export function Signup() {
 
         {step === 1 && (
           <>
-            <h2 className="q-title">お名前を教えてください</h2>
+            <h2 className="q-title">{kind === 'supporter' ? 'あなた（支える側）のお名前' : 'あなたのお名前を教えてください'}</h2>
             <label className="field">
               <span>お名前</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="例：山田 花子" autoFocus />
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === 'supporter' ? '例：山田 エリカ' : '例：山田 花子'} autoFocus />
             </label>
             <label className="field">
-              <span>呼ばれたい名前</span>
-              <input value={callName} onChange={(e) => setCallName(e.target.value)} placeholder="例：はなこさん" />
+              <span>{kind === 'supporter' ? '相手から見たあなたの呼び名' : '呼ばれたい名前'}</span>
+              <input value={callName} onChange={(e) => setCallName(e.target.value)} placeholder={kind === 'supporter' ? '例：エリカ' : '例：はなこさん'} />
             </label>
             <label className="field">
               <span>メールアドレス（なくても大丈夫）</span>
@@ -213,14 +210,15 @@ export function Signup() {
 
         {step === 2 && kind === 'supporter' && (
           <>
-            <h2 className="q-title">サポートする人とつながる</h2>
-            <p className="muted">ご本人のアプリの「つながり」画面にある招待コードを入れてください。ご本人が承認すると、思い出を見たり質問を送ったりできます。</p>
+            <h2 className="q-title">支える相手とつながる</h2>
+            <p className="muted">相手（思い出を残すご本人）のアプリの「💬 つながり」画面に、招待コードがあります。そのコードを入れてください。</p>
+            <p className="muted">相手が「承認する」を押すと、思い出を見たり、質問を送ったりできるようになります。</p>
             <label className="field">
-              <span>ご本人の招待コード</span>
+              <span>相手の招待コード</span>
               <input value={seniorCode} onChange={(e) => setSeniorCode(e.target.value)} placeholder="例：HANA-2741" autoCapitalize="characters" />
             </label>
             <div className="field">
-              <span>ご本人との関係</span>
+              <span>相手から見て、あなたは？</span>
               <div className="chips">
                 {ROLES.map((r) => (
                   <button key={r.id} className={`chip ${role === r.id ? 'on' : ''}`} onClick={() => setRole(r.id)}>
@@ -230,11 +228,11 @@ export function Signup() {
               </div>
             </div>
             <label className="field">
-              <span>呼び方（例：孫、長女、担当スタッフ）</span>
+              <span>相手との関係（例：孫、長女、担当スタッフ）</span>
               <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="孫" />
             </label>
             <BigButton onClick={finish}>{seniorCode.trim() ? 'つながる' : 'あとでつながる'}</BigButton>
-            <p className="muted small center">デモ用コード: {state.users.filter((u) => u.kind === 'senior').map((u) => `${u.callName} ${u.inviteCode}`).join(' / ')}</p>
+            <p className="muted small center">デモ用（思い出を残すご本人）のコード: {state.users.filter((u) => u.kind === 'senior').map((u) => `${u.callName} ${u.inviteCode}`).join(' / ')}</p>
           </>
         )}
       </main>

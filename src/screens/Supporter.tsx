@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { AudioButton, Avatar, BigButton, Card, Empty, MediaImage, PhotoPicker, Screen, toast } from '../components/ui'
 import { go } from '../lib/router'
-import { formatTime, putMedia, supportedSeniors, uid, useActiveSenior, useMe, useStore } from '../store'
+import { findSeniorByCode, formatTime, putMedia, supportedSeniors, uid, useActiveSenior, useMe, userById, useStore } from '../store'
 import { SUPPORTER_QUESTION_IDEAS } from '../seed'
 
 export function SupporterHome() {
@@ -14,7 +14,7 @@ export function SupporterHome() {
   const [code, setCode] = useState('')
 
   const link = () => {
-    const s = state.users.find((u) => u.kind === 'senior' && u.inviteCode === code.trim().toUpperCase())
+    const s = findSeniorByCode(state, code)
     if (!s) return toast('コードが見つかりませんでした')
     if (state.relationships.some((r) => r.seniorId === s.id && r.supporterId === me.id)) return toast('すでに申請済みです')
     update((d) => {
@@ -41,8 +41,8 @@ export function SupporterHome() {
     return (
       <Screen title="サポーター">
         <h2>{me.callName}、ようこそ</h2>
-        {pending.length > 0 && <p className="muted">⏳ ご本人の承認を待っています。</p>}
-        <Empty emoji="🤝">ご本人とつながると、思い出を見たり、質問を送ったりできます。</Empty>
+        <PendingNote pending={pending.map((r) => r.seniorId)} />
+        {!pending.length && <Empty emoji="🤝">支える相手とつながると、思い出を見たり、質問を送ったりできます。</Empty>}
         {linkForm}
       </Screen>
     )
@@ -110,9 +110,30 @@ export function SupporterHome() {
         ))
       )}
 
+      <PendingNote pending={pending.map((r) => r.seniorId)} />
       <h3 className="section-title">ほかの人をサポートする</h3>
       {linking ? linkForm : <BigButton variant="ghost" onClick={() => setLinking(true)}>➕ 招待コードで追加</BigButton>}
     </Screen>
+  )
+}
+
+function PendingNote({ pending }: { pending: string[] }) {
+  const { state } = useStore()
+  if (!pending.length) return null
+  const first = userById(state, pending[0])
+  return (
+    <Card tone="pink">
+      <div className="card-label">⏳ 承認を待っています</div>
+      {pending.map((id) => {
+        const s = userById(state, id)
+        return (
+          <p key={id}>
+            <b>{s?.callName}</b>のホームに「サポーターになりたいそうです」というお知らせが届いています。{s?.callName}が「承認する」を押すとつながります。
+          </p>
+        )
+      })}
+      <p className="small muted">デモでは、画面いちばん上の「切り替え ▾」で{first?.callName}に切り替えると、承認できます。</p>
+    </Card>
   )
 }
 

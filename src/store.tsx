@@ -193,6 +193,17 @@ export function newMemory(partial: Partial<Memory> & Pick<Memory, 'seniorId' | '
   return { id: uid('mem'), transcript: '', createdAt: t, updatedAt: t, ...partial }
 }
 
+/** 「hana 2741」「ＨＡＮＡ－２７４１」なども HANA-2741 として扱う */
+export function normalizeCode(input: string) {
+  const s = input.normalize('NFKC').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  return s.length > 4 ? `${s.slice(0, 4)}-${s.slice(4)}` : s
+}
+
+export function findSeniorByCode(state: AppState, input: string) {
+  const code = normalizeCode(input)
+  return state.users.find((u) => u.kind === 'senior' && u.inviteCode === code)
+}
+
 export function makeInviteCode(name: string) {
   const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
   const head = Array.from({ length: 4 }, () => letters[Math.floor(Math.random() * letters.length)]).join('')
