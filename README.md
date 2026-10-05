@@ -3,6 +3,8 @@
 高齢者の「人生・つながり・毎日の楽しみ」を支えるアプリの PoC（触れるプロトタイプ）。
 要件: `../erika-requirement.txt`
 
+**公開URL: https://immirei-t.github.io/hidamari-poc/** （スマホ可・Android Chrome 推奨）
+
 ## 起動
 
 ```bash
@@ -14,6 +16,13 @@ npm run dev      # http://localhost:5173
 - 画面上部の **DEMO バー** で「はなこさん（本人）／よしこさん・たけしさん（友達）／エリカさん（サポーター）」を切り替えられます。1台で全フローを確認できます。
 - 録音にはマイク許可が必要。文字起こしは **Chrome / Edge 推奨**（ブラウザ内蔵の音声認識を使用）。
 - データはそのブラウザの IndexedDB にのみ保存（サーバー無し）。DEMO バー →「データを初期化」で初期状態に戻ります。
+
+## 公開（GitHub Pages / gh-pages ブランチ）
+
+```bash
+npm run build
+cd dist && touch .nojekyll && git init -b gh-pages && git add -A && git commit -m deploy   && git push -f https://github.com/immirei-t/hidamari-poc.git gh-pages && rm -rf .git
+```
 
 ## MVP 完成条件（要件 #43）との対応
 
@@ -56,5 +65,5 @@ npm run dev      # http://localhost:5173
 ## 既知の制約
 
 - Safari / iOS では文字起こしの精度・動作が不安定な場合あり（録音自体は可）。
-- スマホ実機で試すには HTTPS 配信が必要（例: `npm run build` → Netlify / Vercel / Cloudflare Pages に `dist/` を置く）。
+- スマホ実機は上の公開URLで試せます（HTTPS なのでマイク可）。
 - 別の端末同士でのメッセージのやりとりは不可（サーバーが無いため）。
