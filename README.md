@@ -14,7 +14,7 @@ npm run dev      # http://localhost:5173
 
 - PC で開くと、左に「デモの歩き方」、右にスマホ画面が出ます。
 - 画面上部の **DEMO バー** で「はなこさん（本人）／よしこさん・たけしさん（友達）／エリカさん（サポーター）」を切り替えられます。1台で全フローを確認できます。
-- 録音にはマイク許可が必要。文字起こしは **Chrome / Edge 推奨**（ブラウザ内蔵の音声認識を使用）。
+- 録音にはマイク許可が必要。録音後、音声をサーバー（Cloudflare Workers AI の Whisper large-v3-turbo）に送って文字にします（iPhone 含む全端末）。
 - データはそのブラウザの IndexedDB にのみ保存（サーバー無し）。DEMO バー →「データを初期化」で初期状態に戻ります。
 
 ## 公開（GitHub Pages / gh-pages ブランチ）
@@ -22,6 +22,17 @@ npm run dev      # http://localhost:5173
 ```bash
 npm run build
 cd dist && touch .nojekyll && git init -b gh-pages && git add -A && git commit -m deploy   && git push -f https://github.com/immirei-t/hidamari-poc.git gh-pages && rm -rf .git
+```
+
+## 文字起こしサーバー（worker/）
+
+- URL: https://hidamari-stt.hidamari-stt.workers.dev （`.env` の `VITE_STT_URL`）
+- Cloudflare の個人アカウント（Immirei.t@gmail.com's Account）。無料枠内で動作。音声は文字起こしにだけ使い保存しない。
+- ログインはプロジェクト専用（`worker/.wrangler-home`、PC 全体の wrangler ログインとは別）
+
+```bash
+npm --prefix worker run login    # 初回のみ
+npm --prefix worker run deploy
 ```
 
 ## MVP 完成条件（要件 #43）との対応
@@ -58,12 +69,12 @@ cd dist && touch .nojekyll && git init -b gh-pages && git add -A && git commit -
 | 認証 | 簡易切り替え | Firebase Auth / Supabase Auth（電話番号・LINEログインなど高齢者向け） |
 | DB | ブラウザ IndexedDB | Supabase(Postgres) / Firestore。行レベルの権限で「承認した人だけ」 |
 | 音声・写真 | ブラウザ内 | S3 / Cloud Storage（署名付きURL・暗号化） |
-| 文字起こし | Web Speech API（端末依存） | 保存後にサーバーで Whisper / Google STT |
+| 文字起こし | Cloudflare Workers AI（Whisper）※許可サイトのみの簡易制限 | 同じ構成に認証を追加 |
 | AI 整理 | 無し（レシピは文ごとに番号付けのみ） | LLM で材料・分量・手順の構造化、タイトル生成 |
 | 通知 | 無し | プッシュ通知（「よしこさんからメッセージ」） |
 
 ## 既知の制約
 
-- Safari / iOS では文字起こしの精度・動作が不安定な場合あり（録音自体は可）。
+- スマホではブラウザ内蔵の音声認識は使わない（録音が無音になるため）。文字起こしはサーバーのみ。
 - スマホ実機は上の公開URLで試せます（HTTPS なのでマイク可）。
 - 別の端末同士でのメッセージのやりとりは不可（サーバーが無いため）。
