@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-// 録音（MediaRecorder）と文字起こし（Web Speech API）を同時に行うフック。
-// PoC: 文字起こしはブラウザ内蔵の音声認識（Chrome / Edge / Safari）。
+// 録音（MediaRecorder）と文字起こし（Web Speech API）を行うフック。
+// PoC: 文字起こしはブラウザ内蔵の音声認識（PC の Chrome / Edge のみ。スマホは録音のみ）。
 // 本番: 保存した音声をサーバー側の Speech-to-Text（Whisper / Google STT 等）で起こすのが確実。
 
 type Phase = 'idle' | 'recording' | 'review'
@@ -14,12 +14,41 @@ const SpeechRecognitionCtor: AnyRecognition =
     ? (window as AnyRecognition).SpeechRecognition || (window as AnyRecognition).webkitSpeechRecognition
     : undefined
 
+const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+// iPadOS は Mac と名乗るのでタッチ点数で判定
+const isIOS = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1)
+const isMobile = isIOS || /Android/i.test(ua)
+
 export const speechSupported = !!SpeechRecognitionCtor
+// スマホでは音声認識がマイクを占有し、同時に録音すると無音になる（iPhone Safari で確認）。
+// 「本人の声を残す」を優先し、スマホでは録音のみ行う。文字起こしは本番でサーバー側 STT に置き換える。
+export const liveTranscription = speechSupported && !isMobile
 export const recordingSupported = typeof window !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined'
 
 function pickMime() {
-  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']
+  // iPhone は webm を録れても再生できない場合があるため mp4 を優先
+  const candidates = isIOS
+    ? ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm']
+    : ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']
   return candidates.find((m) => MediaRecorder.isTypeSupported?.(m)) ?? ''
+}
+
+/** 録音が無音（マイクが取れていない）かどうかを調べる。判定できないときは false */
+async function isSilent(blob: Blob): Promise<boolean> {
+  try {
+    const Ctx = window.AudioContext || (window as AnyRecognition).webkitAudioContext
+    const ctx: AudioContext = new Ctx()
+    const buf = await ctx.decodeAudioData(await blob.arrayBuffer())
+    ctx.close()
+    let peak = 0
+    for (let c = 0; c < buf.numberOfChannels; c++) {
+      const data = buf.getChannelData(c)
+      for (let i = 0; i < data.length; i += 64) peak = Math.max(peak, Math.abs(data[i]))
+    }
+    return peak < 0.003
+  } catch {
+    return false
+  }
 }
 
 export function useVoiceRecorder() {
@@ -30,6 +59,7 @@ export function useVoiceRecorder() {
   const [blob, setBlob] = useState<Blob>()
   const [url, setUrl] = useState<string>()
   const [error, setError] = useState<string>()
+  const [warning, setWarning] = useState<string>()
 
   const recorderRef = useRef<MediaRecorder>()
   const streamRef = useRef<MediaStream>()
@@ -106,6 +136,9 @@ export function useVoiceRecorder() {
         setBlob(b)
         setUrl(URL.createObjectURL(b))
         setPhase('review')
+        isSilent(b).then((silent) => {
+          if (b.size < 1000 || silent) setWarning('声が録音できていないようです。「🔄 録り直す」を押して、もう一度お試しください。')
+        })
       }
       recorderRef.current = rec
       finalRef.current = ''
@@ -113,8 +146,10 @@ export function useVoiceRecorder() {
       setInterim('')
       setSeconds(0)
       activeRef.current = true
-      rec.start()
-      startRecognition()
+      setWarning(undefined)
+      // 1秒ごとにデータを受け取る（Safari で空の録音になるのを防ぐ）
+      rec.start(1000)
+      if (liveTranscription) startRecognition()
       setPhase('recording')
       const startedAt = Date.now()
       timerRef.current = window.setInterval(() => setSeconds(Math.floor((Date.now() - startedAt) / 1000)), 250)
@@ -154,7 +189,8 @@ export function useVoiceRecorder() {
     setTranscript('')
     setInterim('')
     setSeconds(0)
+    setWarning(undefined)
   }, [cleanup])
 
-  return { phase, seconds, transcript, interim, blob, url, error, start, stop, reset, setTranscript }
+  return { phase, seconds, transcript, interim, blob, url, error, warning, start, stop, reset, setTranscript }
 }

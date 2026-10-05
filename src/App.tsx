@@ -2,7 +2,7 @@ import { Component, useState, type ReactNode } from 'react'
 import { Avatar, ToastHost } from './components/ui'
 import { go, useRoute } from './lib/router'
 import { useMe, useStore } from './store'
-import { speechSupported } from './lib/useVoiceRecorder'
+import { liveTranscription } from './lib/useVoiceRecorder'
 import { Signup, Welcome } from './screens/Welcome'
 import { SeniorHome } from './screens/SeniorHome'
 import { Answer } from './screens/Answer'
@@ -162,7 +162,7 @@ function DemoGuide() {
         <p>
           🎤 録音はマイク許可が必要です。
           <br />
-          📝 文字起こし: {speechSupported ? '✅ このブラウザで使えます' : '⚠️ このブラウザ非対応（Chrome / Edge 推奨）'}
+          📝 文字起こし: {liveTranscription ? '✅ このブラウザで使えます' : '⚠️ この端末では録音のみ（PC の Chrome / Edge で文字起こし）'}
           <br />
           💾 データはこのブラウザ内だけに保存されます（サーバー無し）。
         </p>
